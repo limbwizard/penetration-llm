@@ -1,0 +1,22 @@
+# Project-local build of the pentest model.
+# Registered as `deephat` by: scripts/ollama-local.sh create
+# The GGUF is fetched into the repo by: scripts/ollama-local.sh fetch-gguf
+#
+# num_ctx pins the context window in-repo so it travels with the checkout and
+# does not depend on any server-wide runtime override. 32768 is the model's
+# native max (Qwen2.5-Coder-7B base); higher would need YaRN rope-scaling, which
+# degrades short-context quality, so we keep the full native window.
+# NOTE: ollama resolves a relative FROM against the Modelfile's own directory
+# (scripts/), so this path is written relative to scripts/, not the repo root.
+FROM ../.penetration-llm/ollama/gguf/DeepHat-V1-7B.Q6_K.gguf
+
+# Context + full GPU offload: 7B Q6 (~6.3 GB) + 32K KV (q8_0) fits the 16 GB GPU
+# with room to spare, so force every layer onto the GPU.
+PARAMETER num_ctx 32768
+PARAMETER num_gpu 999
+# Cap generation so the model can't run away (it produced 200 KB once); a strong
+# next-command + short rationale + JSON fits well under this.
+PARAMETER num_predict 1024
+PARAMETER temperature 0.15
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.15
