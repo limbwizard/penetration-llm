@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "penetration-llm"
+version = "0.1.0"
+description = "Local-first terminal chat assistant for authorized security testing."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Local Terminal Pentest Chat Agent" }]
+dependencies = [
+  "rich>=13.7.0"
+]
+
+[project.scripts]
+penetration-llm = "pentest_llm.cli:main"
+pentest-llm = "pentest_llm.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pentest_llm"]

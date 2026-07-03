@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.penetration-llm/
+dist/
+build/
+*.sqlite
+*.sqlite3
+*.db
+reports/
