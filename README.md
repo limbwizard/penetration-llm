@@ -1,118 +1,147 @@
-# Local Terminal Pentest Chat Agent
+<div align="center">
 
-`penetration-llm` is a lean local-first terminal chat assistant for authorized security testing. It connects only to a project-local Chat Completions-compatible Ollama server at `http://127.0.0.1:11435/v1` using `deephat` (DeepHat-V1-7B, an offensive-security fine-tune of Qwen2.5-Coder-7B, built locally from an in-repo Modelfile with a 32K context window), keeps session context in SQLite, proposes pentest-aware commands, captures output, and exports Markdown reports.
+# penetration-llm
 
-The app intentionally stays small. Bring your own operational guardrails, authorization workflow, and target restrictions.
+**A local-first terminal pentest assistant. An offensive-security model runs on your machine; nothing leaves it.**
+
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Inference](https://img.shields.io/badge/inference-100%25%20local-success)](#how-it-works)
+[![Model](https://img.shields.io/badge/model-DeepHat--V1--7B-0EA5A5)](#the-model)
+[![Deps](https://img.shields.io/badge/network-loopback%20only-lightgrey)](#privacy-model)
+
+</div>
+
+---
+
+> ### ⚠️ Authorized use only
+> This tool proposes and, in its higher modes, runs security-testing commands. Use it **only**
+> against systems you own or have explicit written permission to test. You are responsible for
+> staying inside your authorization, scope, and testing window. It ships with **no scope matcher,
+> no denylist, and no output redaction** — those guardrails are yours to bring. See
+> [Lean by design](#lean-by-design).
+
+## Why local-first
+
+An AI pentest helper is worthless if using it means shipping your recon, your target names, and your
+command output to someone else's servers. So this one doesn't. The model runs on your machine
+through a **project-local** Ollama server on loopback, the session lives in a local SQLite file, and
+there are no remote endpoints and no API keys anywhere in the app. What you test stays on the box you
+test from.
+
+## How it works
+
+```mermaid
+flowchart LR
+    U["you"] --> C["penetration-llm<br/><i>terminal chat</i>"]
+    C -->|"127.0.0.1:11435"| O["Ollama<br/><i>project-local</i>"]
+    O --> M["DeepHat-V1-7B<br/><i>offensive-security fine-tune</i>"]
+    C -->|"propose"| X["command"]
+    X -->|"manual · assisted · automated"| R["executor"]
+    R --> DB[("SQLite<br/>session + findings")]
+    DB --> RP["Markdown report"]
+    style C fill:#2563EB,color:#fff
+    style M fill:#0EA5A5,color:#fff
+```
+
+The model proposes pentest-aware commands for the phase you're in. Depending on the execution mode
+you run them yourself and paste output back, confirm each one, or let it run them directly. Every
+command and finding is captured to SQLite and exports to a Markdown report.
+
+## The model
+
+`deephat` is **DeepHat-V1-7B**, an offensive-security fine-tune of Qwen2.5-Coder-7B, built locally
+from an in-repo Modelfile that pins the model's full **32K native context**. It runs with
+`OLLAMA_FLASH_ATTENTION=1` and `OLLAMA_KV_CACHE_TYPE=q8_0` so 32K stays cheap on a **16 GB GPU**.
 
 ## Install
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate    # Linux / Kali / WSL
+python -m pip install -e .
+```
+
+<details><summary>Windows PowerShell</summary>
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e .
 ```
+</details>
 
-On Linux or Kali:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-```
-
-## Start a Session
+## Set up the local model
 
 ```bash
-penetration-llm
-```
-
-The first run starts a short context wizard. You will provide:
-
-- targets/context
-- target type and allowed test categories
-- optional exclusions, testing window, and authorization reference
-- intensity and notes
-
-The local model settings are built into the app.
-
-## Project-Local Data
-
-Runtime data is kept inside this repo under `.penetration-llm/`:
-
-- `.penetration-llm/sessions.sqlite` for chat/session history
-- `.penetration-llm/reports/` for default report exports
-- `.penetration-llm/ollama/models/` for this app's Ollama model store
-- `.penetration-llm/home`, `.penetration-llm/config`, `.penetration-llm/cache`, and `.penetration-llm/share` for local runtime state
-
-The app does not use `~/.penetration-llm`, `~/.ollama`, `/root/.ollama`, or the default Ollama `localhost:11434` model store.
-
-## Chat Commands
-
-- `/help` shows commands.
-- `/context` or `/scope` prints the session context.
-- `/sessions` lists saved sessions.
-- `/plan [phase|all]` prints an offline assessment plan for the current scope.
-- `/tools` checks availability of common local assessment tools.
-- `/mode manual|assisted|automated` changes execution mode.
-- `/timeout [seconds]` shows or updates the local command timeout.
-- `/paste` accepts pasted command output until a line containing only `EOF`.
-- `/exec <command>` runs a local command and stores the output.
-- `/report [path]` exports a Markdown report.
-- `/findings` lists stored findings.
-- `/exit` quits.
-
-## Execution Modes
-
-- `manual`: default. The model proposes commands, you run them externally, then paste output back.
-- `assisted`: model-proposed commands require a single confirmation before subprocess execution.
-- `automated`: model-proposed commands are executed directly after proposal parsing.
-
-## Local Model Setup
-
-Start a project-local Ollama server in one terminal:
-
-```bash
+# Terminal 1 — start the project-local Ollama server
 scripts/ollama-local.sh serve
-```
 
-Build the app's model into this repo from another terminal. The `deephat` tag is created locally
-from `scripts/DeepHat.Modelfile`, which pins the model's full 32K native context window:
-
-```bash
+# Terminal 2 — build the deephat model into this repo
 scripts/ollama-local.sh build
 ```
 
 `build` downloads a Q6_K GGUF of DeepHat-V1-7B into `.penetration-llm/ollama/gguf/` and creates the
-`deephat` model in the project-local store. It defaults to the
+`deephat` model in the project-local store (defaults to the
 [mradermacher](https://huggingface.co/mradermacher/DeepHat-V1-7B-GGUF) Q6_K quant; override with
-`DEEPHAT_GGUF_URL=<url>` (and optionally `DEEPHAT_GGUF_SHA256=<sha>` to verify) for a different
-quant or mirror. The server runs with `OLLAMA_FLASH_ATTENTION=1` and `OLLAMA_KV_CACHE_TYPE=q8_0` so
-the 32K context stays cheap on a 16 GB GPU.
+`DEEPHAT_GGUF_URL` / `DEEPHAT_GGUF_SHA256`). No `ollama` on PATH? `scripts/ollama-local.sh install`
+vendors one into `.penetration-llm/runtime/` without touching system paths.
 
-Then run the assistant:
+## Run
 
 ```bash
 penetration-llm
 ```
 
-If this WSL/Linux environment does not have an `ollama` binary on `PATH`, place one at `.penetration-llm/bin/ollama` or run:
+First run walks a short context wizard: targets, target type, allowed test categories, optional
+exclusions, testing window, authorization reference, intensity, and notes. The scope you set is what
+the model plans against.
 
-```bash
-scripts/ollama-local.sh install
-```
+## Execution modes
 
-The local installer downloads Ollama into `.penetration-llm/runtime/` and links `.penetration-llm/bin/ollama`. If system `zstd` is unavailable, the script vendors Python `zstandard` into `.penetration-llm/python/` and still avoids writing to system paths.
+| Mode | Behavior |
+|---|---|
+| `manual` | **Default.** The model proposes; you run commands externally and paste output back. Nothing executes on its own. |
+| `assisted` | Proposed commands require a single confirmation before running. |
+| `automated` | Proposed commands run directly after parsing. Use only where you are fully authorized. |
 
-## Lean Design
+Switch anytime with `/mode manual|assisted|automated`.
+
+## Commands
+
+| Command | Does |
+|---|---|
+| `/context` · `/scope` | Print the session scope |
+| `/plan [phase\|all]` | Offline assessment plan for the current scope |
+| `/tools` | Check which common local assessment tools are installed |
+| `/exec <cmd>` | Run a local command and store the output |
+| `/paste` | Paste command output until a line with only `EOF` |
+| `/findings` | List stored findings |
+| `/report [path]` | Export a Markdown report |
+| `/sessions` | List saved sessions |
+| `/timeout [secs]` | Show or set the command timeout |
+| `/help` · `/exit` | Help · quit |
+
+## Privacy model
+
+Everything runtime lives **inside the repo** under `.penetration-llm/` — session SQLite, reports,
+the Ollama model store, and all runtime state. The app deliberately does **not** touch
+`~/.penetration-llm`, `~/.ollama`, `/root/.ollama`, or the default Ollama `localhost:11434` store, so
+it never collides with or leaks into a system Ollama install. The only network it uses is loopback to
+its own server.
+
+## Lean by design
+
+This is a focused tool, not a framework. On purpose, it has:
 
 - no built-in scope matcher
 - no output redaction layer
 - no command denylist
 - no remote LLM endpoints or API keys
-- execution behavior is controlled by the selected mode
 
-## Syntax Check
+Execution is governed entirely by the mode you choose. Bring your own operational guardrails,
+authorization workflow, and target restrictions.
 
-```bash
-python -m compileall src
-```
+---
+
+<div align="center">
+<sub>Built by <a href="https://isaaclimb.com">Isaac Limb</a> · <a href="https://isaaclimb.com/projects/penetration-llm.html">Project writeup</a></sub>
+</div>
