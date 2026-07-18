@@ -105,6 +105,20 @@ the model plans against.
 
 Switch anytime with `/mode manual|assisted|automated`.
 
+## Non-interactive use
+
+Some actions don't need the chat loop and can be scripted directly:
+
+```bash
+penetration-llm sessions          # list saved sessions
+penetration-llm tools             # local pentest tool inventory
+penetration-llm plan [phase|all]  # offline plan for the latest session's scope
+penetration-llm report [path]     # export a Markdown report for the latest session
+penetration-llm --version
+```
+
+`plan` and `report` act on the most recent session unless you pass `--session <id>`.
+
 ## Commands
 
 | Command | Does |
@@ -139,6 +153,18 @@ This is a focused tool, not a framework. On purpose, it has:
 
 Execution is governed entirely by the mode you choose. Bring your own operational guardrails,
 authorization workflow, and target restrictions.
+
+## Development
+
+```bash
+python -m pip install -e ".[dev]"
+pytest          # run the test suite (no model server required)
+ruff check .    # lint
+mypy            # type-check (strict)
+```
+
+The tests cover parsing, storage, methodology, reporting, and the non-interactive CLI paths, and
+run fully offline — none of them contact the local model server.
 
 ---
 
