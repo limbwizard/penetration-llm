@@ -4,19 +4,33 @@
 #
 # num_ctx pins the context window in-repo so it travels with the checkout and
 # does not depend on any server-wide runtime override. 32768 is the model's
-# native max (Qwen2.5-Coder-7B base); higher would need YaRN rope-scaling, which
-# degrades short-context quality, so we keep the full native window.
+# native trained window (Qwen2.5-Coder-7B base). Going higher is possible on this
+# 16 GB GPU memory-wise, but needs rope-scaling (YaRN/NTK) because the weights
+# were not trained past 32K; without it, attention degrades past the window. See
+# the commented rope block at the bottom to experiment with 64K.
 # NOTE: ollama resolves a relative FROM against the Modelfile's own directory
 # (scripts/), so this path is written relative to scripts/, not the repo root.
-FROM ../.penetration-llm/ollama/gguf/DeepHat-V1-7B.Q6_K.gguf
+FROM ../.penetration-llm/ollama/gguf/DeepHat-V1-7B.Q8_0.gguf
 
-# Context + full GPU offload: 7B Q6 (~6.3 GB) + 32K KV (q8_0) fits the 16 GB GPU
-# with room to spare, so force every layer onto the GPU.
+# Context + full GPU offload: 7B Q8_0 (~8.1 GB) + 32K f16 KV (~1.8 GB) fits the
+# 16 GB GPU with headroom, so force every layer onto the GPU.
 PARAMETER num_ctx 32768
 PARAMETER num_gpu 999
-# Cap generation so the model can't run away (it produced 200 KB once); a strong
-# next-command + short rationale + JSON fits well under this.
-PARAMETER num_predict 1024
+# Cap generation so the model can't run away (it produced 200 KB once). Raised to
+# 2048 so richer plans / multi-step rationale + JSON are not truncated mid-answer.
+PARAMETER num_predict 2048
+# Low temperature keeps command choices deterministic and on-task.
 PARAMETER temperature 0.15
 PARAMETER top_p 0.9
-PARAMETER repeat_penalty 1.15
+PARAMETER min_p 0.02
+# repeat_penalty stays gentle: a coder model emits legitimately repeated tokens
+# (flags, JSON keys, paths), so an aggressive penalty hurts command fidelity.
+# Runaway output is bounded by num_predict, not by this.
+PARAMETER repeat_penalty 1.05
+
+# --- Optional: extend context past the native 32K (experimental) ---
+# Qwen2.5-Coder-7B was trained at 32K; to use a larger window without garbage
+# output you must rope-scale. Linear (PI) scaling via rope_frequency_scale is the
+# only lever ollama exposes here. For ~64K, set num_ctx 65536 above and uncomment:
+#   PARAMETER rope_frequency_scale 0.5
+# Expect some short-context quality loss; rebuild the tag after changing it.

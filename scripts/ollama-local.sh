@@ -19,10 +19,10 @@ OLLAMA_VERSION="v0.31.1"
 # `deephat` tag is created from scripts/DeepHat.Modelfile (pins num_ctx 65536).
 MODELFILE="$ROOT/scripts/DeepHat.Modelfile"
 GGUF_DIR="$DATA_DIR/ollama/gguf"
-GGUF_PATH="$GGUF_DIR/DeepHat-V1-7B.Q6_K.gguf"
-# Q6_K GGUF of DeepHat-V1-7B; override DEEPHAT_GGUF_URL for a different quant/mirror.
-# Optionally set DEEPHAT_GGUF_SHA256 to verify the download.
-DEEPHAT_GGUF_URL="${DEEPHAT_GGUF_URL:-https://huggingface.co/mradermacher/DeepHat-V1-7B-GGUF/resolve/main/DeepHat-V1-7B.Q6_K.gguf}"
+GGUF_PATH="$GGUF_DIR/DeepHat-V1-7B.Q8_0.gguf"
+# Q8_0 GGUF of DeepHat-V1-7B (~8.1 GB, near-lossless); override DEEPHAT_GGUF_URL
+# for a smaller quant/mirror. Optionally set DEEPHAT_GGUF_SHA256 to verify.
+DEEPHAT_GGUF_URL="${DEEPHAT_GGUF_URL:-https://huggingface.co/mradermacher/DeepHat-V1-7B-GGUF/resolve/main/DeepHat-V1-7B.Q8_0.gguf}"
 DEEPHAT_GGUF_SHA256="${DEEPHAT_GGUF_SHA256:-}"
 OLLAMA_ARCHIVE="ollama-linux-amd64.tar.zst"
 OLLAMA_URL="https://github.com/ollama/ollama/releases/download/$OLLAMA_VERSION/$OLLAMA_ARCHIVE"
@@ -41,10 +41,12 @@ export OLLAMA_MODELS="$MODELS_DIR"
 export OLLAMA_KEEP_ALIVE="30m"
 export OLLAMA_MAX_LOADED_MODELS="1"
 export OLLAMA_NUM_PARALLEL="1"
-# Flash attention lets the KV cache be quantized to q8_0 (~half the memory,
-# negligible quality loss), keeping the 32K window cheap on 16 GB VRAM.
+# f16 KV cache for maximum attention precision. On 16 GB VRAM this is affordable
+# alongside Q8_0 weights at the 32K window (~1.8 GB KV); flash attention still
+# helps speed/memory. Switch to q8_0 here if you want to trade a little precision
+# for a much larger KV budget (e.g. to push context past 32K with rope-scaling).
 export OLLAMA_FLASH_ATTENTION="1"
-export OLLAMA_KV_CACHE_TYPE="q8_0"
+export OLLAMA_KV_CACHE_TYPE="f16"
 
 mkdir -p "$GGUF_DIR"
 
@@ -55,7 +57,7 @@ Usage: scripts/ollama-local.sh <command>
 Commands:
   install     Download Ollama into .penetration-llm/runtime and link it locally
   serve       Start project-local Ollama on $BASE_URL
-  fetch-gguf  Download the DeepHat Q6_K GGUF into .penetration-llm/ollama/gguf
+  fetch-gguf  Download the DeepHat Q8_0 GGUF into .penetration-llm/ollama/gguf
   create      Build the '$MODEL' tag from scripts/DeepHat.Modelfile
   build       fetch-gguf + create (full self-contained model build)
   pull        Alias for build
@@ -194,7 +196,7 @@ fetch_gguf() {
   fi
   if [[ -z "$DEEPHAT_GGUF_URL" ]]; then
     echo "DEEPHAT_GGUF_URL is empty. Unset it to use the default, or point it at a" >&2
-    echo "Q6_K GGUF of DeepHat-V1-7B (default: mradermacher/DeepHat-V1-7B-GGUF)." >&2
+    echo "Q8_0 GGUF of DeepHat-V1-7B (default: mradermacher/DeepHat-V1-7B-GGUF)." >&2
     exit 1
   fi
   mkdir -p "$GGUF_DIR"
