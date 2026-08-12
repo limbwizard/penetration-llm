@@ -53,6 +53,12 @@ command and finding is captured to SQLite and exports to a Markdown report.
 from an in-repo Modelfile that pins the model's full **32K native context**. It runs with
 `OLLAMA_FLASH_ATTENTION=1` and `OLLAMA_KV_CACHE_TYPE=q8_0` so 32K stays cheap on a **16 GB GPU**.
 
+Every request is **budgeted to that window** so long engagements never overflow it: the system
+framing and your latest turn are always kept, recent history fills the remaining space, and a
+single oversized message (a huge scan dump) is trimmed head-and-tail instead of silently pushing
+the conversation out of context. Tune it with `PENTEST_LLM_CONTEXT_TOKENS` if you rebuild the model
+with a different `num_ctx`.
+
 ## Install
 
 ```bash
@@ -139,6 +145,17 @@ This is a focused tool, not a framework. On purpose, it has:
 
 Execution is governed entirely by the mode you choose. Bring your own operational guardrails,
 authorization workflow, and target restrictions.
+
+## Development
+
+```bash
+python -m pip install -e ".[dev]"   # app + pytest, ruff, mypy
+make check                          # ruff lint + format check + mypy + pytest
+```
+
+Or run the gates individually: `make test`, `make lint`, `make format`, `make typecheck`. The same
+checks run in CI on every push and pull request. The test suite is fully offline — it never needs
+the model or the network.
 
 ---
 
