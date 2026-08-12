@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+
+from pentest_llm import llm
 from pentest_llm.llm import (
     SYSTEM_PROMPT,
+    LLMClient,
     build_messages,
     extract_command_proposal,
     extract_findings,
@@ -9,6 +13,23 @@ from pentest_llm.llm import (
     scope_context,
 )
 from pentest_llm.models import Scope
+from pentest_llm.paths import RESPONSE_RESERVE_TOKENS
+
+
+class _FakeResponse:
+    """Minimal stand-in for an HTTP response: a context manager over byte lines."""
+
+    def __init__(self, lines: list[bytes]):
+        self._lines = lines
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+    def __iter__(self):
+        return iter(self._lines)
 
 
 def test_extract_json_payloads_from_fence_and_bare_and_dedup():
@@ -123,3 +144,47 @@ def test_build_messages_skips_unknown_roles(scope: Scope):
     contents = [m["content"] for m in messages]
     assert "ignored" not in contents
     assert "kept" in contents
+
+
+def test_llmclient_default_max_tokens_tracks_reserve():
+    assert LLMClient().max_tokens == RESPONSE_RESERVE_TOKENS
+
+
+def test_llmclient_streams_content_and_sends_configured_max_tokens(monkeypatch):
+    captured: dict = {}
+
+    def fake_urlopen(request, timeout=None):
+        captured["timeout"] = timeout
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        return _FakeResponse(
+            [
+                b'data: {"choices":[{"delta":{"content":"nmap "}}]}\n',
+                b'data: {"choices":[{"delta":{"content":"-sV"}}]}\n',
+                b"data: [DONE]\n",
+            ]
+        )
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", fake_urlopen)
+    client = LLMClient(timeout=7, max_tokens=321)
+    out = "".join(client.chat([{"role": "user", "content": "hi"}]))
+
+    assert out == "nmap -sV"
+    assert captured["timeout"] == 7
+    assert captured["body"]["max_tokens"] == 321
+    assert captured["body"]["stream"] is True
+    assert captured["body"]["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_llmclient_raises_llmerror_on_connection_failure(monkeypatch):
+    import urllib.error
+
+    def boom(request, timeout=None):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", boom)
+    try:
+        list(LLMClient().chat([{"role": "user", "content": "hi"}]))
+    except llm.LLMError as exc:
+        assert "Could not reach local LLM server" in str(exc)
+    else:  # pragma: no cover - the call above must raise
+        raise AssertionError("expected LLMError")
