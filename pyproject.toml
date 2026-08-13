@@ -9,14 +9,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Isaac Limb" }]
-keywords = ["pentest", "security", "llm", "local-first", "ollama", "cli"]
-classifiers = [
-  "Environment :: Console",
-  "Intended Audience :: Information Technology",
-  "License :: OSI Approved :: MIT License",
-  "Programming Language :: Python :: 3 :: Only",
-  "Topic :: Security",
-]
 dynamic = ["version"]
 dependencies = [
   "rich>=13.7.0",
@@ -31,7 +23,6 @@ dev = [
 
 [project.scripts]
 penetration-llm = "pentest_llm.cli:main"
-pentest-llm = "pentest_llm.cli:main"
 
 [tool.hatch.version]
 path = "src/pentest_llm/__init__.py"
