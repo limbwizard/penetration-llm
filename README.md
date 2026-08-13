@@ -50,8 +50,11 @@ command and finding is captured to SQLite and exports to a Markdown report.
 ## The model
 
 `deephat` is **DeepHat-V1-7B**, an offensive-security fine-tune of Qwen2.5-Coder-7B, built locally
-from an in-repo Modelfile that pins the model's full **32K native context**. It runs with
-`OLLAMA_FLASH_ATTENTION=1` and `OLLAMA_KV_CACHE_TYPE=q8_0` so 32K stays cheap on a **16 GB GPU**.
+from an in-repo Modelfile. It ships as the near-lossless **Q8_0** quant (~8.1 GB) and pins the
+model's full **32K native context** with an **f16 KV cache** for maximum precision — the whole thing
+still fits a **16 GB GPU** (~8.1 GB weights + ~1.8 GB KV) with `OLLAMA_FLASH_ATTENTION=1`. Sampling
+is tuned for command fidelity (low temperature, gentle repeat penalty). 32K is the base model's
+trained ceiling; the Modelfile documents an optional rope-scaling block to experiment past it.
 
 Every request is **budgeted to that window** so long engagements never overflow it: the system
 framing and your latest turn are always kept, recent history fills the remaining space, and a
@@ -85,11 +88,12 @@ scripts/ollama-local.sh serve
 scripts/ollama-local.sh build
 ```
 
-`build` downloads a Q6_K GGUF of DeepHat-V1-7B into `.penetration-llm/ollama/gguf/` and creates the
+`build` downloads a Q8_0 GGUF of DeepHat-V1-7B into `.penetration-llm/ollama/gguf/` and creates the
 `deephat` model in the project-local store (defaults to the
-[mradermacher](https://huggingface.co/mradermacher/DeepHat-V1-7B-GGUF) Q6_K quant; override with
-`DEEPHAT_GGUF_URL` / `DEEPHAT_GGUF_SHA256`). No `ollama` on PATH? `scripts/ollama-local.sh install`
-vendors one into `.penetration-llm/runtime/` without touching system paths.
+[mradermacher](https://huggingface.co/mradermacher/DeepHat-V1-7B-GGUF) Q8_0 quant; override with
+`DEEPHAT_GGUF_URL` / `DEEPHAT_GGUF_SHA256` for a smaller quant/mirror). No `ollama` on PATH?
+`scripts/ollama-local.sh install` vendors one into `.penetration-llm/runtime/` without touching
+system paths.
 
 ## Run
 

@@ -37,6 +37,15 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `cli.py` slimmed to orchestration; terminal rendering extracted to
   `pentest_llm/render.py`, and a single `LLMClient` is shared across a session.
 - Project version is now sourced from `pentest_llm.__version__`.
+- **Model tuned for maximum quality at native 32K on 16 GB VRAM.** The build now
+  fetches the near-lossless **Q8_0** quant (~8.1 GB) and serves it with an **f16
+  KV cache** (`OLLAMA_KV_CACHE_TYPE=f16`) for full attention precision. The
+  Modelfile raises `num_predict` to 2048 so richer multi-step plans are not
+  truncated, softens `repeat_penalty` to 1.05 (a coder model legitimately
+  repeats flags/JSON keys/paths), adds `min_p` sampling, and documents an
+  optional rope-scaling block for experimenting past 32K.
+- `scripts/bake_rope.py`: self-contained tool to bake YaRN rope-scaling metadata
+  into a GGUF, unlocking a larger context window (64K/96K/128K) when needed.
 
 ## [0.1.0]
 
